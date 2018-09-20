@@ -3,6 +3,9 @@
  * Release Date: 19/10/2018
 */
 
+// TODO: modificare tutte le funzioni di movimento in modo da
+// muover la macchina in una posizione assoluta
+
 // arduino pin <--> pins on ULN2003 board:
 // 8           <--> IN1
 // 9           <--> IN2
@@ -55,7 +58,10 @@ struct contextt_t{
   Servo zservo;  // servo che controlla l'asse z 
   CheapStepper xstepper;
 
-
+  int32_t xsteps;
+  int32_t ysteps;
+  int32_t zsteps;
+  
 }context; 
 
 // FRAMER
@@ -66,9 +72,6 @@ void init_framer(){
     context.msg_buffer[i] = '\0';
   }
 }
-
-
-
 
 // do framer just analyze one character at time
 int do_framer(){
@@ -145,11 +148,25 @@ uint32_t hexstr2uint(const char *str, int num_digit){
 //interpret the command in the framer_buffer
 void do_cmd(){
    
-   if(safe_strcmp(context.msg_buffer, "Y****\n", 6) == 0){      
+   if(safe_strcmp(context.msg_buffer, "X****\n", 6) == 0){
+      uint16_t val =     hexstr2uint(context.msg_buffer+1,4);
+      int16_t xsteps =  *((int16_t*)(&val));
+      move_xaxis(xsteps);
       Serial.write(":OK\n");
-   }if(safe_strcmp(context.msg_buffer, "Z****\n", 6) == 0){  
+      
+   }else if(safe_strcmp(context.msg_buffer, "Y****\n", 6) == 0){  
+      uint16_t val =hexstr2uint(context.msg_buffer+1,4);
+      int16_t ysteps =  *((int16_t*)(&val));
+      move_yaxis(ysteps);      
       Serial.write(":OK\n");
-   }else{
+      
+   }else if(safe_strcmp(context.msg_buffer, "Z****\n", 6) == 0){ 
+      uint16_t val = hexstr2uint(context.msg_buffer+1,4);
+      int16_t zsteps =  *((int16_t*)(&val));
+      move_zaxis(zsteps);       
+      Serial.write(":OK\n");
+      
+   }else {
       Serial.write(":ERR\n");
    }
    
@@ -157,6 +174,12 @@ void do_cmd(){
 }
 
 void init_motor(){
+
+  context.xsteps = 0;
+  context.ysteps = 0;
+  context.zsteps = 0;
+  
+  
   context.yservo.attach(YSERVO_PIN);
   context.zservo.attach(ZSERVO_PIN);
 
@@ -172,22 +195,39 @@ void init_motor(){
 }
 
 
-int move_xaxis(int steps){
+int move_yaxis(int32_t steps){
+
+
+    
+    context.ysteps = steps;
+    context.yservo.write(context.ysteps+90); 
+
+}
+
+int move_zaxis(int32_t steps){
+    context.zsteps = steps;
+    context.zservo.write(context.zsteps+90);
+}
+
+int move_xaxis(int32_t steps){
 
   int finecorsa_pin;
   int dir;
-  
+  int rot_sense;
   if(steps > 0){
     finecorsa_pin = FINECORSA2_PIN;
-    dir           = MOVE_CCW;
+    dir           = 1;
+    rot_sense           = MOVE_CCW;
   }else{
     finecorsa_pin = FINECORSA1_PIN;
-    dir           = MOVE_CW;  
-    steps         = -steps;  
+    rot_sense           = MOVE_CW;  
+    dir           = -1;
+    steps             = -steps;  
   }
-  for(int i =0; i< steps; i++){
+  for(int32_t i =0; i< steps; i++){
       if (digitalRead(finecorsa_pin) == 1){
-        context.xstepper.step(dir);
+        context.zsteps += dir;
+        context.xstepper.step(rot_sense);
       }else{
         return 1; // trovato fine corsa
       }   

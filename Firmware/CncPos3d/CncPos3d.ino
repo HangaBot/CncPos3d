@@ -3,8 +3,8 @@
  * Release Date: 19/10/2018
 */
 
-// TODO: modificare tutte le funzioni di movimento in modo da
-// muover la macchina in una posizione assoluta
+// TODO: aggiungere le funzioni per ottenere la posizione attuale
+//       aggiungere le funzioni per modificare le costanti e gli offset 
 
 // arduino pin <--> pins on ULN2003 board:
 // 8           <--> IN1
@@ -49,6 +49,15 @@
 #define MOVE_CW  true
 #define MOVE_CCW false
 
+//risoluzioni in micron 
+#define X_RES   100   
+#define Y_RES   100   
+#define Z_RES   100   
+
+#define Y_ARM_LEN  20000
+#define Z_ARM_LEN  20000
+#define X_UM_TO_STEP  20
+
 struct contextt_t{
   //hidden context
   uint32_t  framer_context;
@@ -58,9 +67,14 @@ struct contextt_t{
   Servo zservo;  // servo che controlla l'asse z 
   CheapStepper xstepper;
 
-  int32_t xsteps;
-  int32_t ysteps;
-  int32_t zsteps;
+  float xpos;     //indica la posizione assouluta da scalarare rispetto al centro con xres
+  float ypos;     //indica la posizione assouluta da scalarare rispetto al centro con yres
+  float zpos ;    //indica la posizione assouluta da scalarare rispetto al centro con zres
+
+  float xcomp;   //indica 
+  float ycomp;   //indica l'angolo da applicare al servo per compempensare la rotazione iniziale
+  float zcomp;   //indica l'angolo da applicare al servo per compempensare la rotazione iniziale
+
   
 }context; 
 
@@ -148,22 +162,22 @@ uint32_t hexstr2uint(const char *str, int num_digit){
 //interpret the command in the framer_buffer
 void do_cmd(){
    
-   if(safe_strcmp(context.msg_buffer, "X****\n", 6) == 0){
+   if(safe_strcmp(context.msg_buffer, "X****\n", 6) == 0){ // posizione in micrometri
       uint16_t val =     hexstr2uint(context.msg_buffer+1,4);
-      int16_t xsteps =  *((int16_t*)(&val));
-      move_xaxis(xsteps);
+      int16_t xpos =  *((int16_t*)(&val));
+      move_xaxis(xpos);
       Serial.write(":OK\n");
       
-   }else if(safe_strcmp(context.msg_buffer, "Y****\n", 6) == 0){  
+   }else if(safe_strcmp(context.msg_buffer, "Y****\n", 6) == 0){   // posizione in micrometri
       uint16_t val =hexstr2uint(context.msg_buffer+1,4);
-      int16_t ysteps =  *((int16_t*)(&val));
-      move_yaxis(ysteps);      
+      int16_t ypos =  *((int16_t*)(&val));
+      move_yaxis(ypos);      
       Serial.write(":OK\n");
       
-   }else if(safe_strcmp(context.msg_buffer, "Z****\n", 6) == 0){ 
+   }else if(safe_strcmp(context.msg_buffer, "Z****\n", 6) == 0){  // posizione in micrometri
       uint16_t val = hexstr2uint(context.msg_buffer+1,4);
-      int16_t zsteps =  *((int16_t*)(&val));
-      move_zaxis(zsteps);       
+      int16_t zpos =  *((int16_t*)(&val));
+      move_zaxis(zpos);       
       Serial.write(":OK\n");
       
    }else {
@@ -175,9 +189,13 @@ void do_cmd(){
 
 void init_motor(){
 
-  context.xsteps = 0;
-  context.ysteps = 0;
-  context.zsteps = 0;
+  context.xpos = 0;     //indica la posizione assouluta da scalarare rispetto al centro con xres
+  context.ypos = 0;     //indica la posizione assouluta da scalarare rispetto al centro con yres
+  context.zpos = 0;    //indica la posizione assouluta da scalarare rispetto al centro con zres
+
+  context.xcomp = 0;   //indica 
+  context.ycomp = 90;   //indica l'angolo da applicare al servo per compempensare la rotazione iniziale
+  context.zcomp = 90;   //indica l'angolo da applicare al servo per compempensare la rotazione iniziale
   
   
   context.yservo.attach(YSERVO_PIN);
@@ -194,26 +212,36 @@ void init_motor(){
   Serial.println();
 }
 
-
-int move_yaxis(int32_t steps){
-
+//ypos in um
+int move_yaxis(float y_pos){
+    
+    float thetay = asin(y_pos/Y_ARM_LEN)*180/PI;
+    context.ypos = y_pos;
 
     
-    context.ysteps = steps;
-    context.yservo.write(context.ysteps+90); 
+    context.yservo.write(thetay+context.ycomp); 
 
 }
 
-int move_zaxis(int32_t steps){
-    context.zsteps = steps;
-    context.zservo.write(context.zsteps+90);
+
+//ypos in um
+int move_zaxis(float z_pos){
+    float thetaz = asin(z_pos/Z_ARM_LEN)*180/PI;
+    context.zpos = z_pos;
+
+    
+    context.yservo.write(thetaz+context.zcomp); 
 }
 
-int move_xaxis(int32_t steps){
+int move_xaxis(float x_pos){
+
+  int steps = (x_pos - context.xpos) /X_UM_TO_STEP;
+  context.xpos = x_pos;
 
   int finecorsa_pin;
   int dir;
   int rot_sense;
+  
   if(steps > 0){
     finecorsa_pin = FINECORSA2_PIN;
     dir           = 1;
@@ -226,7 +254,6 @@ int move_xaxis(int32_t steps){
   }
   for(int32_t i =0; i< steps; i++){
       if (digitalRead(finecorsa_pin) == 1){
-        context.zsteps += dir;
         context.xstepper.step(rot_sense);
       }else{
         return 1; // trovato fine corsa

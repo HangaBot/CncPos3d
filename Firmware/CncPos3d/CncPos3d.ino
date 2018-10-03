@@ -171,7 +171,7 @@ void do_cmd(){
    }else if(safe_strcmp(context.msg_buffer, "Y****\n", 6) == 0){   // posizione in micrometri
       uint16_t val =hexstr2uint(context.msg_buffer+1,4);
       int16_t ypos =  *((int16_t*)(&val));
-      move_yaxis(ypos);      
+      move_yaxis(ypos);
       Serial.write(":OK\n");
       
    }else if(safe_strcmp(context.msg_buffer, "Z****\n", 6) == 0){  // posizione in micrometri
@@ -216,6 +216,7 @@ void init_motor(){
 int move_yaxis(float y_pos){
     
     float thetay = asin(y_pos/Y_ARM_LEN)*180/PI;
+
     context.ypos = y_pos;
 
     
@@ -230,14 +231,14 @@ int move_zaxis(float z_pos){
     context.zpos = z_pos;
 
     
-    context.yservo.write(thetaz+context.zcomp); 
+    context.zservo.write(thetaz+context.zcomp); 
 }
 
 int move_xaxis(float x_pos){
 
-  int steps = (x_pos - context.xpos) /X_UM_TO_STEP;
-  context.xpos = x_pos;
+  int32_t steps = (round(x_pos - context.xpos)) *X_UM_TO_STEP;
 
+  context.xpos = x_pos;
   int finecorsa_pin;
   int dir;
   int rot_sense;

@@ -1,0 +1,32 @@
+REM questo è un commento
+REM tutte le dimensioni sono intere  in micrometri
+
+PEN UP
+PEN DOWN
+Y  0
+Y +8000
+X 50
+Y  -8000
+X -50
+Y +7000
+X -25
+Y +6000
+X -10
+Y  +5000
+X 0
+Y +3000
+X  15
+Y +2000
+X  25
+Y +1000
+X  35
+Y +0000
+X  45
+Y -1000
+X  55
+Y -2000
+X  65
+Y -3000
+X  75
+Y -4000
+X  85

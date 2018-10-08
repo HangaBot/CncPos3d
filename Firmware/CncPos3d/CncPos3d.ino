@@ -49,14 +49,9 @@
 #define MOVE_CW  true
 #define MOVE_CCW false
 
-//risoluzioni in micron 
-#define X_RES   100   
-#define Y_RES   100   
-#define Z_RES   100   
 
 #define Y_ARM_LEN  20000
 #define Z_ARM_LEN  20000
-#define X_UM_TO_STEP  20
 
 struct contextt_t{
   //hidden context
@@ -75,6 +70,9 @@ struct contextt_t{
   float ycomp;   //indica l'angolo da applicare al servo per compempensare la rotazione iniziale
   float zcomp;   //indica l'angolo da applicare al servo per compempensare la rotazione iniziale
 
+
+  float x_um2step;
+  float y_um2step;
   
 }context; 
 
@@ -162,13 +160,22 @@ uint32_t hexstr2uint(const char *str, int num_digit){
 //interpret the command in the framer_buffer
 void do_cmd(){
    
-   if(safe_strcmp(context.msg_buffer, "X****\n", 6) == 0){ // posizione in micrometri
+   if(safe_strcmp(context.msg_buffer, "x****\n", 6) == 0){ // posizione in micrometri  relativa
       uint16_t val =     hexstr2uint(context.msg_buffer+1,4);
       int16_t xpos =  *((int16_t*)(&val));
-      move_xaxis(xpos);
+      move_xaxis(xpos, false);
       Serial.write(":OK\n");
       
-   }else if(safe_strcmp(context.msg_buffer, "Y****\n", 6) == 0){   // posizione in micrometri
+   }else if(safe_strcmp(context.msg_buffer, "X****\n", 6) == 0){ // posizione in micrometri  assoluta
+      uint16_t val =     hexstr2uint(context.msg_buffer+1,4);
+      int16_t xpos =  *((int16_t*)(&val));
+      move_xaxis(xpos,true);
+      Serial.write(":OK\n");
+      
+   }else if(safe_strcmp(context.msg_buffer, "rstX\n", 5) == 0){
+      context.xpos  = 0;      
+      Serial.write(":OK\n");
+   } else if(safe_strcmp(context.msg_buffer, "Y****\n", 6) == 0){   // posizione in micrometri
       uint16_t val =hexstr2uint(context.msg_buffer+1,4);
       int16_t ypos =  *((int16_t*)(&val));
       move_yaxis(ypos);
@@ -196,7 +203,10 @@ void init_motor(){
   context.xcomp = 0;   //indica 
   context.ycomp = 90;   //indica l'angolo da applicare al servo per compempensare la rotazione iniziale
   context.zcomp = 90;   //indica l'angolo da applicare al servo per compempensare la rotazione iniziale
+
   
+  context.x_um2step = 5;
+  context.y_um2step = 5;
   
   context.yservo.attach(YSERVO_PIN);
   context.zservo.attach(ZSERVO_PIN);
@@ -218,10 +228,8 @@ int move_yaxis(float y_pos){
     float thetay = asin(y_pos/Y_ARM_LEN)*180/PI;
 
     context.ypos = y_pos;
-
-    
+   
     context.yservo.write(thetay+context.ycomp); 
-
 }
 
 
@@ -234,11 +242,17 @@ int move_zaxis(float z_pos){
     context.zservo.write(thetaz+context.zcomp); 
 }
 
-int move_xaxis(float x_pos){
-
-  int32_t steps = (round(x_pos - context.xpos)) *X_UM_TO_STEP;
-
-  context.xpos = x_pos;
+int move_xaxis(float x_pos, bool absolute){
+  int32_t steps;
+  if (absolute){
+    steps = (round(x_pos - context.xpos))*context.x_um2step;
+  
+    context.xpos = x_pos;
+  }else{
+    steps = (round(x_pos))*context.x_um2step;
+    context.xpos += x_pos;
+  }
+  
   int finecorsa_pin;
   int dir;
   int rot_sense;

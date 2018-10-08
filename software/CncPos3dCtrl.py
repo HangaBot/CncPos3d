@@ -63,7 +63,7 @@ class CncPos3d:
 if __name__ == "__main__":
 
     print (sys.argv)
-    cnc = CncPos3d("COM6",True)
+    cnc = CncPos3d("COM3",True)
     
     if(len (sys.argv) == 2 ):
     
